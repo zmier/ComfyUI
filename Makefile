@@ -23,6 +23,7 @@ help:
 	@echo "  run                 - Run ComfyUI"
 	@echo "  clean               - Remove virtual environment"
 	@echo "  install-ps-plugin   - Install the Photoshop plugin and download all required models"
+	@echo "  install-sdppp       - Install the SD-PPP Photoshop plugin"
 	@echo "  uninstall-ps-plugin - Uninstall the Photoshop plugin and ComfyUI integration (keeps models and ZXP Installer)"
 	@echo "  uninstall-ps-plugin-full - Uninstall the Photoshop plugin and ComfyUI integration (full removal, including models and ZXP Installer)"
 
@@ -58,6 +59,12 @@ clean:
 install-ps-plugin:
 	@echo "Starting Photoshop plugin setup..."
 	@$(PYTHON) setup_photoshop_integration.py
+
+# 安装 SD-PPP 插件
+.PHONY: install-sdppp
+install-sdppp:
+	@echo "Starting SD-PPP plugin setup..."
+	@$(PYTHON) setup_photoshop_integration.py --install-sdppp
 
 # 卸载 Photoshop 插件 (保留模型和 ZXP Installer)
 .PHONY: uninstall-ps-plugin

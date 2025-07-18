@@ -27,6 +27,9 @@ CUSTOM_NODE_REPOS = {
     "ComfyUI_essentials": "https://github.com/cubiq/ComfyUI_essentials.git",
 }
 
+# SD-PPP Repository
+SD_PPP_REPO = "https://github.com/zombieyang/sd-ppp.git"
+
 # Model URLs and their destinations
 MODELS_TO_DOWNLOAD = {
     "checkpoints": {
@@ -356,15 +359,63 @@ def uninstall_photoshop_integration(keep_models=False, uninstall_zxp=False):
     print("\n🎉 Uninstallation Complete!")
     print("Please remember to restart Photoshop and ComfyUI to ensure all changes take effect.")
 
-def final_instructions():
-    print_header("🎉 Automation Complete! Final Steps:")
-    print("All required files have been downloaded and the Photoshop plugin has been automatically copied to potential installation locations.")
-    print("\n--- After Installation ---")
-    print("1.  **Close and Reopen Photoshop**: Ensure Photoshop is completely closed, then relaunch it.")
-    print("2.  **Set ComfyUI to English**: Open ComfyUI, go to Settings, and change the language to English. This is CRITICAL to prevent errors.")
-    print("3.  **Restart ComfyUI & Load Workflow**: Restart the server, then double-click, search for 'Photoshop ComfyUI Plugin', and click 'Load SD1.5'.")
-    print("4.  **Launch Photoshop & Connect**: Start Photoshop, go to 'Plugins' -> 'ComfyUI for adobe Photoshop' and click 'Get Started'.")
-    print("\nEnjoy your new AI-powered Photoshop workflow!")
+def install_sdppp_plugin():
+    print_header("Installing SD-PPP Plugin")
+
+    sdppp_repo_path = os.path.join(CUSTOM_NODES_DIR, "sd-ppp")
+    sdppp_plugin_source_path = os.path.join(sdppp_repo_path, "plugins", "photoshop")
+    plugin_folder_name = "SD-PPP" # The name of the folder to be copied to Photoshop
+
+    try:
+        # 1. Clone or update SD-PPP repository
+        if os.path.exists(sdppp_repo_path):
+            print(f"   Updating SD-PPP repository: {sdppp_repo_path}...")
+            subprocess.run(["git", "pull", "--force"], cwd=sdppp_repo_path, check=True)
+        else:
+            print(f"   Cloning SD-PPP repository: {SD_PPP_REPO} to {sdppp_repo_path}...")
+            subprocess.run(["git", "clone", SD_PPP_REPO, sdppp_repo_path], check=True)
+        print("✅ SD-PPP repository cloned/updated.")
+
+        # 2. Verify the plugin source path exists
+        if not os.path.exists(sdppp_plugin_source_path) or not os.path.isdir(sdppp_plugin_source_path):
+            print(f"   ❌ ERROR: SD-PPP Photoshop plugin source directory not found at: {sdppp_plugin_source_path}. Please check the repository structure.")
+            return
+        if not os.path.exists(os.path.join(sdppp_plugin_source_path, "manifest.json")):
+            print(f"   ❌ ERROR: 'manifest.json' not found in SD-PPP Photoshop plugin source directory: {sdppp_plugin_source_path}. This is required for Photoshop plugins.")
+            return
+
+        print(f"   Identified plugin source: {sdppp_plugin_source_path}")
+
+        # 3. Copy the plugin folder to all potential Photoshop plugin paths
+        photoshop_plugin_paths = [
+            "/Library/Application Support/Adobe/CEP/extensions",  # System-level CEP extensions
+            os.path.expanduser("~/Library/Application Support/Adobe/CEP/extensions"), # User-level CEP extensions
+            "/Applications/Adobe Photoshop 2025/Plug-ins" # Photoshop application-level plugins
+        ]
+
+        for dest_path in photoshop_plugin_paths:
+            target_plugin_path = os.path.join(dest_path, plugin_folder_name)
+            print(f"   Attempting to copy plugin to: {target_plugin_path}...")
+            
+            try:
+                os.makedirs(dest_path, exist_ok=True)
+                if os.path.exists(target_plugin_path):
+                    print(f"   - Existing plugin found at {target_plugin_path}. Removing before copying.")
+                    shutil.rmtree(target_plugin_path)
+                shutil.copytree(sdppp_plugin_source_path, target_plugin_path)
+                print(f"   ✅ Successfully copied plugin to: {target_plugin_path}")
+            except PermissionError:
+                print(f"   ⚠️ WARNING: Permission denied to copy to {target_plugin_path}. You may need to run this script with administrator privileges (sudo).")
+            except Exception as e:
+                print(f"   ❌ ERROR copying plugin to {target_plugin_path}: {e}")
+
+    except subprocess.CalledProcessError as e:
+        print(f"   ❌ ERROR during git operation: {e}")
+    except Exception as e:
+        print(f"   ❌ An unexpected error occurred during SD-PPP plugin installation: {e}")
+
+    print("\n🎉 SD-PPP Plugin Installation Attempt Complete!")
+    print("Please remember to restart Photoshop and ComfyUI to ensure all changes take effect.")
 
 
 if __name__ == "__main__":
@@ -372,13 +423,16 @@ if __name__ == "__main__":
     parser.add_argument("--uninstall", action="store_true", help="Uninstall the Photoshop plugin and ComfyUI integration.")
     parser.add_argument("--keep-models", action="store_true", help="When uninstalling, keep downloaded models and LoRAs.")
     parser.add_argument("--uninstall-zxp", action="store_true", help="When uninstalling, also uninstall ZXP Installer via Homebrew.")
+    parser.add_argument("--install-sdppp", action="store_true", help="Install the SD-PPP Photoshop plugin.")
     
     args = parser.parse_args()
 
     if args.uninstall:
         uninstall_photoshop_integration(keep_models=args.keep_models, uninstall_zxp=args.uninstall_zxp)
+    elif args.install_sdppp:
+        install_sdppp_plugin()
     else:
-        # Installation logic
+        # Default installation logic (for comfyui-photoshop)
         install_custom_nodes()
         install_custom_node_dependencies()
         download_models()
