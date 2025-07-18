@@ -23,6 +23,8 @@ help:
 	@echo "  run                 - Run ComfyUI"
 	@echo "  clean               - Remove virtual environment"
 	@echo "  install-ps-plugin   - Install the Photoshop plugin and download all required models"
+	@echo "  uninstall-ps-plugin - Uninstall the Photoshop plugin and ComfyUI integration (keeps models and ZXP Installer)"
+	@echo "  uninstall-ps-plugin-full - Uninstall the Photoshop plugin and ComfyUI integration (full removal, including models and ZXP Installer)"
 
 # 安装依赖
 # 首先确保虚拟环境存在, 然后安装 requirements.txt 中的依赖
@@ -56,3 +58,15 @@ clean:
 install-ps-plugin:
 	@echo "Starting Photoshop plugin setup..."
 	@$(PYTHON) setup_photoshop_integration.py
+
+# 卸载 Photoshop 插件 (保留模型和 ZXP Installer)
+.PHONY: uninstall-ps-plugin
+uninstall-ps-plugin:
+	@echo "Uninstalling Photoshop plugin and ComfyUI integration (keeping models and ZXP Installer)..."
+	@$(PYTHON) setup_photoshop_integration.py --uninstall --keep-models
+
+# 完全卸载 Photoshop 插件 (包括模型和 ZXP Installer)
+.PHONY: uninstall-ps-plugin-full
+uninstall-ps-plugin-full:
+	@echo "Uninstalling Photoshop plugin and ComfyUI integration (full removal)..."
+	@$(PYTHON) setup_photoshop_integration.py --uninstall --uninstall-zxp

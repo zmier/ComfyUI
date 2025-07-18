@@ -6,6 +6,7 @@ import sys
 import zipfile
 import shutil
 from tqdm import tqdm
+import argparse
 
 # --- Configuration ---
 
@@ -226,13 +227,29 @@ def install_photoshop_plugin_manually():
 
         # 2. Find the actual plugin folder within the extracted content
         # Based on user's manual inspection, the plugin content is directly in the extracted folder
-        plugin_content_dir = temp_extract_dir # Assume the extracted folder itself is the plugin content
-        plugin_folder_name = "3e6d64e0_PS" # Based on user's manual inspection
+        # Based on user's manual inspection, the plugin content is directly in the extracted folder
+        plugin_content_dir = temp_extract_dir
+        plugin_folder_name = "3e6d64e0_PS"
 
         # Verify if manifest.json exists in the assumed plugin content directory
         if not os.path.exists(os.path.join(plugin_content_dir, "manifest.json")):
             print("   ❌ ERROR: Could not find 'manifest.json' in the extracted plugin content. The plugin structure might be different than expected.")
             return
+
+        # If the plugin folder is nested, find it
+        nested_plugin_folder = None
+        for item in os.listdir(temp_extract_dir):
+            item_path = os.path.join(temp_extract_dir, item)
+            if os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, "manifest.json")):
+                nested_plugin_folder = item_path
+                plugin_folder_name = item # Update plugin_folder_name to the actual folder name
+                break
+        
+        if nested_plugin_folder:
+            plugin_content_dir = nested_plugin_folder
+            print(f"   Found nested plugin folder: {plugin_folder_name}")
+        else:
+            print("   Using top-level extracted folder as plugin content.")
 
         print(f"   Identified plugin folder: {plugin_folder_name}")
 
@@ -268,6 +285,77 @@ def install_photoshop_plugin_manually():
             print(f"   Cleaning up temporary directory: {temp_extract_dir}")
             shutil.rmtree(temp_extract_dir) # Re-enable cleanup after debugging
 
+def uninstall_photoshop_integration(keep_models=False, uninstall_zxp=False):
+    print_header("Uninstalling Photoshop Plugin and ComfyUI Integration")
+
+    # Define potential Photoshop plugin installation paths
+    photoshop_plugin_paths = [
+        "/Library/Application Support/Adobe/CEP/extensions",  # System-level CEP extensions
+        os.path.expanduser("~/Library/Application Support/Adobe/CEP/extensions"), # User-level CEP extensions
+        "/Applications/Adobe Photoshop 2025/Plug-ins" # Photoshop application-level plugins
+    ]
+    
+    plugin_folder_name = "3e6d64e0_PS" # The name of the folder copied to Photoshop
+
+    # 1. Remove Photoshop plugin files
+    print("\n-> Removing Photoshop plugin files...")
+    for dest_path in photoshop_plugin_paths:
+        target_plugin_path = os.path.join(dest_path, plugin_folder_name);
+        if os.path.exists(target_plugin_path):
+            try:
+                shutil.rmtree(target_plugin_path)
+                print(f"   ✅ Successfully removed plugin from: {target_plugin_path}")
+            except PermissionError:
+                print(f"   ⚠️ WARNING: Permission denied to remove from {target_plugin_path}. You may need to run this script with administrator privileges (sudo).")
+            except Exception as e:
+                print(f"   ❌ ERROR removing plugin from {target_plugin_path}: {e}")
+        else:
+            print(f"   - Plugin not found at: {target_plugin_path}. Skipping.")
+
+    # 2. Remove comfyui-photoshop custom node
+    print("\n-> Removing comfyui-photoshop custom node...")
+    comfyui_photoshop_node_path = os.path.join(CUSTOM_NODES_DIR, "comfyui-photoshop")
+    if os.path.exists(comfyui_photoshop_node_path):
+        try:
+            shutil.rmtree(comfyui_photoshop_node_path)
+            print(f"   ✅ Successfully removed custom node: {comfyui_photoshop_node_path}")
+        except Exception as e:
+            print(f"   ❌ ERROR removing custom node {comfyui_photoshop_node_path}: {e}")
+    else:
+        print(f"   - Custom node not found at: {comfyui_photoshop_node_path}. Skipping.")
+
+    # 3. Conditionally remove models
+    if not keep_models:
+        print("\n-> Removing downloaded models and LoRAs...")
+        for model_type in MODELS_TO_DOWNLOAD.keys():
+            model_dir = os.path.join(MODELS_DIR, model_type)
+            if os.path.exists(model_dir):
+                try:
+                    shutil.rmtree(model_dir)
+                    print(f"   ✅ Successfully removed model directory: {model_dir}")
+                except Exception as e:
+                    print(f"   ❌ ERROR removing model directory {model_dir}: {e}")
+            else:
+                print(f"   - Model directory not found: {model_dir}. Skipping.")
+    else:
+        print("\n-> Keeping downloaded models and LoRAs as requested.")
+
+    # 4. Conditionally uninstall ZXP Installer
+    if uninstall_zxp:
+        print("\n-> Uninstalling ZXP Installer...")
+        try:
+            subprocess.run(["brew", "uninstall", "--cask", "zxpinstaller"], check=True)
+            print("   ✅ ZXP Installer uninstalled successfully.")
+        except FileNotFoundError:
+            print("   ❌ ERROR: Homebrew is not installed or not in your PATH. Cannot uninstall ZXP Installer.")
+        except subprocess.CalledProcessError as e:
+            print(f"   ❌ ERROR: Failed to uninstall ZXP Installer. Brew command failed: {e}")
+    else:
+        print("\n-> Keeping ZXP Installer as requested.")
+
+    print("\n🎉 Uninstallation Complete!")
+    print("Please remember to restart Photoshop and ComfyUI to ensure all changes take effect.")
+
 def final_instructions():
     print_header("🎉 Automation Complete! Final Steps:")
     print("All required files have been downloaded and the Photoshop plugin has been automatically copied to potential installation locations.")
@@ -280,11 +368,19 @@ def final_instructions():
 
 
 if __name__ == "__main__":
-    # ZXP Installer check is no longer strictly necessary for plugin installation,
-    # but can be kept for other potential uses or as a fallback.
-    # if check_and_install_zxp_installer(): # Keeping this line for now, but it's not critical for plugin copy
-    install_custom_nodes()
-    install_custom_node_dependencies()
-    download_models()
-    install_photoshop_plugin_manually() # New function to handle manual plugin copy
-    final_instructions()
+    parser = argparse.ArgumentParser(description="ComfyUI Photoshop Integration Setup/Uninstall Script.")
+    parser.add_argument("--uninstall", action="store_true", help="Uninstall the Photoshop plugin and ComfyUI integration.")
+    parser.add_argument("--keep-models", action="store_true", help="When uninstalling, keep downloaded models and LoRAs.")
+    parser.add_argument("--uninstall-zxp", action="store_true", help="When uninstalling, also uninstall ZXP Installer via Homebrew.")
+    
+    args = parser.parse_args()
+
+    if args.uninstall:
+        uninstall_photoshop_integration(keep_models=args.keep_models, uninstall_zxp=args.uninstall_zxp)
+    else:
+        # Installation logic
+        install_custom_nodes()
+        install_custom_node_dependencies()
+        download_models()
+        install_photoshop_plugin_manually()
+        final_instructions()
