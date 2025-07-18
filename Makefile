@@ -19,9 +19,10 @@ all: help
 help:
 	@echo "Usage: make [target]"
 	@echo "Targets:"
-	@echo "  install    - Install dependencies"
-	@echo "  run        - Run ComfyUI"
-	@echo "  clean      - Remove virtual environment"
+	@echo "  install             - Install dependencies"
+	@echo "  run                 - Run ComfyUI"
+	@echo "  clean               - Remove virtual environment"
+	@echo "  install-ps-plugin   - Install the Photoshop plugin and download all required models"
 
 # 安装依赖
 # 首先确保虚拟环境存在, 然后安装 requirements.txt 中的依赖
@@ -49,3 +50,9 @@ $(VENV_DIR):
 clean:
 	@echo "Removing virtual environment..."
 	@rm -rf $(VENV_DIR)
+
+# 安装 Photoshop 插件
+.PHONY: install-ps-plugin
+install-ps-plugin:
+	@echo "Starting Photoshop plugin setup..."
+	@$(PYTHON) setup_photoshop_integration.py
